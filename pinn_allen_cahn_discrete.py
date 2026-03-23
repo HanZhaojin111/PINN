@@ -160,7 +160,7 @@ def train(model, data, rk_coeffs, config, device):
         u_in = u_stage - dt * (rhs_stage @ a.T)
         u_next_pred = u_next - dt * (rhs_stage @ b)
         collocation = torch.cat([u_in, u_next_pred], dim=1)
-        mse_n = torch.mean((collocation - u_n.expand_as(collocation)) ** 2)
+        mse_n = torch.mean((collocation - u_n) ** 2)
 
         u_left = model(x_left)
         u_right = model(x_right)
@@ -340,10 +340,10 @@ def main():
         raise ValueError("dt must be positive.")
     dt = args.dt
     t_target = args.t_target
-    expected_target = args.t_data + dt
-    if not np.isclose(t_target, expected_target):
+    interval = t_target - args.t_data
+    if not np.isclose(interval, dt):
         raise ValueError(
-            f"t-target must match t-data + dt (expected {expected_target:.3f})."
+            f"dt must equal t-target - t-data (expected {interval:.3f})."
         )
 
     torch.manual_seed(args.seed)
