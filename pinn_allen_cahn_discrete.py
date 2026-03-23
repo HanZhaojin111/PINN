@@ -63,9 +63,9 @@ def gauss_legendre_collocation(q):
     return a, b, c
 
 
-def allen_cahn_rhs(u, k2, diffusivity=DIFFUSIVITY):
+def allen_cahn_rhs(u, k_sq, diffusivity=DIFFUSIVITY):
     u_hat = np.fft.fft(u)
-    u_xx = np.fft.ifft(-k2 * u_hat).real
+    u_xx = np.fft.ifft(-k_sq * u_hat).real
     return diffusivity * u_xx - 5.0 * u**3 + 5.0 * u
 
 
@@ -75,7 +75,7 @@ def solve_allen_cahn(t_data, t_target, dt, nx, x_min, x_max):
     length = x_max - x_min
     x = np.linspace(x_min, x_max, nx, endpoint=False)
     k = 2.0 * np.pi * np.fft.fftfreq(nx, d=length / nx)
-    k2 = k**2
+    k_sq = k**2
     n_target = int(round(t_target / dt))
     if n_target < 1:
         raise ValueError("solver dt is too large for the requested target time.")
@@ -90,11 +90,11 @@ def solve_allen_cahn(t_data, t_target, dt, nx, x_min, x_max):
     u = x**2 * np.cos(np.pi * x)
     u_data = u.copy() if n_data == 0 else None
     for step in range(1, n_target + 1):
-        k1 = allen_cahn_rhs(u, k2)
-        rk4_k2 = allen_cahn_rhs(u + 0.5 * dt * k1, k2)
-        k3 = allen_cahn_rhs(u + 0.5 * dt * rk4_k2, k2)
-        k4 = allen_cahn_rhs(u + dt * k3, k2)
-        u = u + (dt / 6.0) * (k1 + 2.0 * rk4_k2 + 2.0 * k3 + k4)
+        k1 = allen_cahn_rhs(u, k_sq)
+        k2 = allen_cahn_rhs(u + 0.5 * dt * k1, k_sq)
+        k3 = allen_cahn_rhs(u + 0.5 * dt * k2, k_sq)
+        k4 = allen_cahn_rhs(u + dt * k3, k_sq)
+        u = u + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
         if step == n_data:
             u_data = u.copy()
     return x, u_data, u
@@ -156,9 +156,9 @@ def train(model, data, rk_coeffs, config, device):
         u_next = outputs[:, q : q + 1]
         u_x_stage = derivatives_per_output(u_stage, x_n)
         u_xx_stage = derivatives_per_output(u_x_stage, x_n)
-        n_stage = -DIFFUSIVITY * u_xx_stage + 5.0 * u_stage**3 - 5.0 * u_stage
-        u_in = u_stage + dt * (n_stage @ a.T)
-        u_next_pred = u_next + dt * (n_stage @ b)
+        rhs_stage = -DIFFUSIVITY * u_xx_stage + 5.0 * u_stage**3 - 5.0 * u_stage
+        u_in = u_stage + dt * (rhs_stage @ a.T)
+        u_next_pred = u_next + dt * (rhs_stage @ b)
         pred = torch.cat([u_in, u_next_pred], dim=1)
         mse_n = torch.mean((pred - u_n.expand_as(pred)) ** 2)
 
