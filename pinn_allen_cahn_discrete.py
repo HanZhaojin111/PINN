@@ -6,6 +6,8 @@ import numpy as np
 import torch
 from torch import nn
 
+DIFFUSIVITY = 0.0001
+
 
 def gradients(y, x):
     return torch.autograd.grad(
@@ -61,7 +63,7 @@ def gauss_legendre_collocation(q):
     return a, b, c
 
 
-def allen_cahn_rhs(u, k2, diffusivity=0.0001):
+def allen_cahn_rhs(u, k2, diffusivity=DIFFUSIVITY):
     u_hat = np.fft.fft(u)
     u_xx = np.fft.ifft(-k2 * u_hat).real
     return diffusivity * u_xx - 5.0 * u**3 + 5.0 * u
@@ -89,10 +91,10 @@ def solve_allen_cahn(t_data, t_target, dt, nx, x_min, x_max):
     u_data = u.copy() if n_data == 0 else None
     for step in range(1, n_target + 1):
         k1 = allen_cahn_rhs(u, k2)
-        k2_step = allen_cahn_rhs(u + 0.5 * dt * k1, k2)
-        k3 = allen_cahn_rhs(u + 0.5 * dt * k2_step, k2)
+        k2_rk4 = allen_cahn_rhs(u + 0.5 * dt * k1, k2)
+        k3 = allen_cahn_rhs(u + 0.5 * dt * k2_rk4, k2)
         k4 = allen_cahn_rhs(u + dt * k3, k2)
-        u = u + (dt / 6.0) * (k1 + 2.0 * k2_step + 2.0 * k3 + k4)
+        u = u + (dt / 6.0) * (k1 + 2.0 * k2_rk4 + 2.0 * k3 + k4)
         if step == n_data:
             u_data = u.copy()
     return x, u_data, u
@@ -154,7 +156,7 @@ def train(model, data, rk_coeffs, config, device):
         u_next = outputs[:, q : q + 1]
         u_x_stage = derivatives_per_output(u_stage, x_n)
         u_xx_stage = derivatives_per_output(u_x_stage, x_n)
-        n_stage = -0.0001 * u_xx_stage + 5.0 * u_stage**3 - 5.0 * u_stage
+        n_stage = -DIFFUSIVITY * u_xx_stage + 5.0 * u_stage**3 - 5.0 * u_stage
         u_in = u_stage + dt * (n_stage @ a.T)
         u_q1 = u_next + dt * (n_stage @ b)
         pred = torch.cat([u_in, u_q1], dim=1)
@@ -230,11 +232,21 @@ def main():
     parser.add_argument("--q", type=int, default=100)
     parser.add_argument("--t-data", type=float, default=0.1)
     parser.add_argument("--t-target", type=float, default=0.9)
-    parser.add_argument("--dt", type=float, default=0.8)
+    parser.add_argument(
+        "--dt",
+        type=float,
+        default=0.8,
+        help="Discrete-time step size between t-data and t-target.",
+    )
     parser.add_argument("--n-data", type=int, default=200)
     parser.add_argument("--x-min", type=float, default=-1.0)
     parser.add_argument("--x-max", type=float, default=1.0)
-    parser.add_argument("--solver-dt", type=float, default=1e-4)
+    parser.add_argument(
+        "--solver-dt",
+        type=float,
+        default=1e-4,
+        help="Time step for the spectral reference solver.",
+    )
     parser.add_argument("--solver-nx", type=int, default=512)
     parser.add_argument("--layers", type=str, default="1,200,200,200,200,101")
     parser.add_argument("--adam-steps", type=int, default=0)
