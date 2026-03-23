@@ -251,7 +251,7 @@ def main():
         "--dt",
         type=float,
         default=0.8,
-        help="Discrete-time step size between t-data and t-target.",
+        help="Time interval from t-data to t-target.",
     )
     parser.add_argument(
         "--n-data",
