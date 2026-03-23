@@ -4,6 +4,7 @@ This repository reproduces PINN examples for:
 
 - the nonlinear Schrödinger equation (Section 3.1.1, continuous-time model)
 - the Allen-Cahn equation (Section 3.2, discrete-time model)
+- the Korteweg-de Vries equation (Section 4.2.1, discrete-time model)
 - the 2D Navier-Stokes equation (Section 4.1.1, cylinder wake example)
 
 ## Setup
@@ -33,6 +34,18 @@ PINN with implicit Gauss-Legendre collocation, and saves the predicted solution
 at the target time into the `.npz` file specified by `--save-predictions`. Note
 that `--dt` is the total interval from `t-data` to `t-target`, while `--solver-dt`
 controls the spectral solver time step used to generate reference data.
+
+## Run the discrete-time KdV PINN example
+
+```bash
+python pinn_kdv_discrete.py --t-data 0.2 --t-target 0.8 --dt 0.6 --n-data 199 --n-target 201 --lbfgs-max-iter 500 --save-predictions kdv_pinn.npz
+```
+
+The script generates reference data from a spectral solver with initial condition
+`u(0,x)=cos(pi x)`, trains a discrete-time PINN with Gauss-Legendre collocation,
+and learns the KdV parameters `(lambda1, lambda2)` from two time snapshots. The
+predicted solution at `t-target` is saved to the `.npz` file specified by
+`--save-predictions`.
 
 ## Run the Navier-Stokes PINN example
 
