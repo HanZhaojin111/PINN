@@ -215,8 +215,8 @@ def apply_bounds(t, x, y, u, v, p, bounds):
 def sample_training_data(t, x, y, u, v, p, n_train, noise, seed):
     rng = np.random.default_rng(seed)
     total = t.shape[0]
-    replace = total < n_train
-    idx = rng.choice(total, size=n_train, replace=replace)
+    sample_with_replacement = total < n_train
+    idx = rng.choice(total, size=n_train, replace=sample_with_replacement)
     t_train = t[idx].reshape(-1, 1)
     x_train = x[idx].reshape(-1, 1)
     y_train = y[idx].reshape(-1, 1)
@@ -243,6 +243,7 @@ def to_tensor(array, device, requires_grad=False):
 
 
 def net_uvp_and_residual(model, t, x, y):
+    """Return velocity, pressure, and PDE residuals f/g for the Navier-Stokes system."""
     psi_p = model(t, x, y)
     psi = psi_p[:, 0:1]
     p = psi_p[:, 1:2]
@@ -305,19 +306,19 @@ def train(model, data, config, device):
         history_size=50,
         line_search_fn="strong_wolfe",
     )
-    state = {"iter": 0}
+    lbfgs_state = {"iter": 0}
 
     def closure():
         optimizer.zero_grad()
         loss, mse_uv, mse_fg = loss_fn()
         loss.backward()
-        if state["iter"] % config["log_every"] == 0:
+        if lbfgs_state["iter"] % config["log_every"] == 0:
             print(
-                f"LBFGS iter {state['iter']:05d} | loss {loss.item():.3e} | "
+                f"LBFGS iter {lbfgs_state['iter']:05d} | loss {loss.item():.3e} | "
                 f"mse_uv {mse_uv.item():.3e} | mse_fg {mse_fg.item():.3e} | "
                 f"lambda1 {model.lambda1.item():.5f} | lambda2 {model.lambda2.item():.5f}"
             )
-        state["iter"] += 1
+        lbfgs_state["iter"] += 1
         return loss
 
     start = time.time()
